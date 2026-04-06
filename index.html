@@ -661,6 +661,38 @@ function selectOut(el) {
   }
 }
 
+// ===== 新增：智能识别 txt 编码 =====
+async function readTxtFileSmart(file) {
+  const buffer = await file.arrayBuffer();
+
+  const encodings = ["utf-8", "gb18030", "gbk", "big5"];
+  let bestText = "";
+  let bestScore = -Infinity;
+  let bestEncoding = "utf-8";
+
+  for (const enc of encodings) {
+    try {
+      const text = new TextDecoder(enc, { fatal: false }).decode(buffer);
+
+      const chineseCount = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+      const badCharCount = (text.match(/�/g) || []).length;
+      const strangeCount = (text.match(/[�□]/g) || []).length;
+
+      const score = chineseCount - badCharCount * 30 - strangeCount * 10;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestText = text;
+        bestEncoding = enc;
+      }
+    } catch (e) {
+      // 某些浏览器不支持个别编码时跳过
+    }
+  }
+
+  return { text: bestText, encoding: bestEncoding };
+}
+
 const fileInput = document.getElementById("fileInput");
 const uploadArea = document.getElementById("uploadArea");
 const useCustomExample = document.getElementById("useCustomExample");
@@ -678,13 +710,14 @@ uploadArea.addEventListener("drop", e => {
 useCustomExample.addEventListener("change", rerunDetection);
 customExample.addEventListener("input", rerunDetection);
 
-function loadFile(file) {
+// ===== 已改：使用智能编码读取 =====
+async function loadFile(file) {
   if (!file) return;
   fileName = file.name;
 
-  const reader = new FileReader();
-  reader.onload = ev => {
-    fileContent = ev.target.result;
+  try {
+    const result = await readTxtFileSmart(file);
+    fileContent = result.text;
     detectionResult = getCurrentDetection();
 
     uploadArea.classList.add("file-loaded");
@@ -692,6 +725,7 @@ function loadFile(file) {
       <div class="icon">📄</div>
       <p><strong>${esc(fileName)}</strong></p>
       <p style="font-size:12px;margin-top:4px;">${(file.size/1024).toFixed(1)} KB · ${fileContent.split("\n").length} 行</p>
+      <p style="font-size:12px;margin-top:4px;color:#8a7a6a;">已自动识别编码：${esc(result.encoding)}</p>
     `;
 
     document.getElementById("runBtn").disabled = detectionResult.reliableCount === 0;
@@ -701,9 +735,10 @@ function loadFile(file) {
     updateStatus();
     updateSamples();
     renderPreview();
-  };
-
-  reader.readAsText(file, "UTF-8");
+  } catch (err) {
+    console.error(err);
+    alert("读取文件失败，请检查文件格式。");
+  }
 }
 
 function process() {
