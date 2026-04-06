@@ -149,17 +149,17 @@
         大写数字
         <div class="sample">第一章 标题</div>
       </div>
-      <div class="out-opt" data-out="ar" onclick="selectOut(this)">
-        阿拉伯数字
-        <div class="sample">第1章 标题</div>
-      </div>
-      <div class="out-opt" data-out="num" onclick="selectOut(this)">
-        纯数字
-        <div class="sample">01 标题</div>
+      <div class="out-opt" data-out="slash" onclick="selectOut(this)">
+        斜杠格式
+        <div class="sample">01/标题</div>
       </div>
       <div class="out-opt" data-out="ch" onclick="selectOut(this)">
         Chapter格式
         <div class="sample">Chapter 1 标题</div>
+      </div>
+      <div class="out-opt" data-out="paren" onclick="selectOut(this)">
+        括号格式
+        <div class="sample">（1）标题</div>
       </div>
     </div>
   </div>
@@ -245,13 +245,18 @@ function numToCn(n) {
 }
 
 function buildOutput(num, title, fmt) {
-  const t = title ? " " + title : "";
+  const t = title || "";
   switch(fmt) {
-    case "cn":  return `第${numToCn(num)}章${t}`;
-    case "ar":  return `第${num}章${t}`;
-    case "num": return `${String(num).padStart(2,"0")}${t}`;
-    case "ch":  return `Chapter ${num}${t}`;
-    default:    return `第${num}章${t}`;
+    case "cn":
+      return `第${numToCn(num)}章${t ? " " + t : ""}`;
+    case "slash":
+      return `${String(num).padStart(2, "0")}/${t}`;
+    case "ch":
+      return `Chapter ${num}${t ? " " + t : ""}`;
+    case "paren":
+      return `（${num}）${t}`;
+    default:
+      return `第${numToCn(num)}章${t ? " " + t : ""}`;
   }
 }
 
@@ -661,7 +666,6 @@ function selectOut(el) {
   }
 }
 
-// ===== 新增：智能识别 txt 编码 =====
 async function readTxtFileSmart(file) {
   const buffer = await file.arrayBuffer();
 
@@ -685,9 +689,7 @@ async function readTxtFileSmart(file) {
         bestText = text;
         bestEncoding = enc;
       }
-    } catch (e) {
-      // 某些浏览器不支持个别编码时跳过
-    }
+    } catch (e) {}
   }
 
   return { text: bestText, encoding: bestEncoding };
@@ -710,7 +712,6 @@ uploadArea.addEventListener("drop", e => {
 useCustomExample.addEventListener("change", rerunDetection);
 customExample.addEventListener("input", rerunDetection);
 
-// ===== 已改：使用智能编码读取 =====
 async function loadFile(file) {
   if (!file) return;
   fileName = file.name;
