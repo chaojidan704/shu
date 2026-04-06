@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>章节标题修复器</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #1a1a2e; --paper: #f8f5ef; --accent: #c0392b;
+    --accent2: #e8d5b0; --muted: #8a7a6a; --border: #d4c9b8; --card: #fffdf9;
+    --ok: #2e7d32; --okbg: #f0faf0; --okbd: #7dbb7d;
+  }
+  body { background: var(--paper); color: var(--ink); font-family: 'Noto Serif SC', serif; min-height: 100vh; padding: 24px 16px 60px; }
+  .grain { position: fixed; inset: 0; pointer-events: none; z-index: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E"); opacity: 0.5; }
+  .wrap { position: relative; z-index: 1; max-width: 520px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 32px; padding-top: 8px; }
+  header .badge { display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); padding: 3px 10px; margin-bottom: 12px; }
+  h1 { font-size: 26px; font-weight: 600; line-height: 1.3; }
+  h1 span { color: var(--accent); }
+  .sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 20px; margin-bottom: 16px; box-shadow: 3px 3px 0 var(--accent2); }
+  .card-title { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .card-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .upload-area { border: 2px dashed var(--border); border-radius: 4px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--paper); }
+  .upload-area:hover, .upload-area.drag { border-color: var(--accent); background: #fef9f5; }
+  .upload-area .icon { font-size: 32px; margin-bottom: 8px; }
+  .upload-area p { font-size: 14px; color: var(--muted); }
+  .upload-area strong { color: var(--ink); }
+  #fileInput { display: none; }
+  .file-loaded { background: #fef6f0; border-color: var(--accent); }
+
+  .status-box, .sample-box, .custom-box {
+    background: #fff8f2;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px;
+    line-height: 1.7;
+  }
+  .status-main { font-size: 14px; color: var(--ink); }
+  .status-main strong { color: var(--accent); }
+  .status-sub { margin-top: 8px; font-size: 12px; color: var(--muted); font-family: 'JetBrains Mono', monospace; white-space: pre-wrap; }
+  .sample-box { font-family: 'JetBrains Mono', monospace; font-size: 12px; white-space: pre-wrap; max-height: 220px; overflow-y: auto; }
+  .custom-box textarea {
+    width: 100%;
+    min-height: 82px;
+    resize: vertical;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: #fffdf9;
+    color: var(--ink);
+    outline: none;
+  }
+  .custom-box textarea:focus { border-color: var(--accent); }
+  .switch-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  .out-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .out-opt { padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 13px; text-align: center; transition: all 0.15s; background: var(--paper); }
+  .out-opt:hover { border-color: var(--accent); }
+  .out-opt.active { border-color: var(--accent); background: #fff3ee; font-weight: 600; color: var(--accent); }
+  .out-opt .sample { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+  .run-btn { width: 100%; padding: 16px; background: var(--accent); color: white; border: none; border-radius: 4px; font-family: 'Noto Serif SC', serif; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; box-shadow: 3px 3px 0 #8b1a1a; letter-spacing: 1px; }
+  .run-btn:hover { transform: translate(-1px,-1px); box-shadow: 4px 4px 0 #8b1a1a; }
+  .run-btn:active { transform: translate(1px,1px); box-shadow: 2px 2px 0 #8b1a1a; }
+  .run-btn:disabled { background: var(--border); color: var(--muted); box-shadow: none; transform: none; cursor: default; }
+
+  .result { display: none; }
+  .result.show { display: block; }
+  .result-inner { background: var(--okbg); border: 1px solid var(--okbd); border-radius: 4px; padding: 16px; box-shadow: 3px 3px 0 #b8e0b8; }
+  .result-num { font-size: 28px; font-weight: 600; color: var(--ok); }
+  .result-label { font-size: 13px; color: #4caf50; margin-top: 2px; }
+
+  .preview-box { background: var(--ink); color: #e8e0d0; border-radius: 4px; padding: 14px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.7; max-height: 220px; overflow-y: auto; display: none; white-space: pre-wrap; }
+  .preview-box.show { display: block; }
+  .preview-box .ch { color: #f0a070; }
+  .preview-box .normal { color: #8a9a8a; }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="wrap">
+  <header>
+    <div class="badge">TXT 工具箱</div>
+    <h1>章节标题<span>修复器</span></h1>
+    <p class="sub">自动识别 + 自定义示例 · 本地处理 · 无需联网</p>
+  </header>
+
+  <div class="card">
+    <div class="card-title">① 上传文件</div>
+    <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+      <div class="icon">📖</div>
+      <p><strong>点击选择</strong> TXT 文件</p>
+      <p style="font-size:12px;margin-top:4px;">或拖拽到此处</p>
+    </div>
+    <input type="file" id="fileInput" accept=".txt">
+  </div>
+
+  <div class="card">
+    <div class="card-title">② 自定义示例（可选）</div>
+    <div class="custom-box">
+      <label class="switch-row">
+        <input type="checkbox" id="useCustomExample">
+        <span>优先使用我输入的章节示例</span>
+      </label>
+      <textarea id="customExample" placeholder="例如：第1章 第 1 章:我的美人娘和阿姐"></textarea>
+      <div class="hint">
+        直接输入一条真实章节行即可，不用写正则，不用写 {n}/{t}。<br>
+        开启后会优先按这条例子识别全文章节。
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">③ 识别结果</div>
+    <div class="status-box" id="statusBox">
+      <div class="status-main">请先上传 TXT 文件</div>
+      <div class="status-sub">可自动识别；也可开启“自定义示例”优先匹配。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">④ 识别样本（前12条）</div>
+    <div class="sample-box" id="sampleBox">上传后这里会显示识别到的章节样本</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⑤ 输出格式</div>
+    <div class="out-options">
+      <div class="out-opt active" data-out="cn" onclick="selectOut(this)">
+        大写数字
+        <div class="sample">第一章 标题</div>
+      </div>
+      <div class="out-opt" data-out="ar" onclick="selectOut(this)">
+        阿拉伯数字
+        <div class="sample">第1章 标题</div>
+      </div>
+      <div class="out-opt" data-out="num" onclick="selectOut(this)">
+        纯数字
+        <div class="sample">01 标题</div>
+      </div>
+      <div class="out-opt" data-out="ch" onclick="selectOut(this)">
+        Chapter格式
+        <div class="sample">Chapter 1 标题</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="previewCard" style="display:none">
+    <div class="card-title">预览（前20行）</div>
+    <div class="preview-box show" id="previewBox"></div>
+  </div>
+
+  <button class="run-btn" id="runBtn" disabled onclick="process()">✨ 开始修复并下载</button>
+
+  <div style="margin-top:16px;" class="result" id="result">
+    <div class="result-inner">
+      <div class="result-num" id="resultNum">0</div>
+      <div class="result-label">个章节标题已修复 ✓</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let fileContent = "", fileName = "";
+let selectedOut = "cn";
+let detectionResult = {
+  items: [],
+  mode: "auto",
+  strongCount: 0,
+  weakCount: 0,
+  reliableCount: 0,
+  customParser: null
+};
+
+// 中文数字
+const cnNums = { "零":0, "〇":0, "一":1, "二":2, "两":2, "三":3, "四":4, "五":5, "六":6, "七":7, "八":8, "九":9 };
+function cnToNum(str) {
+  if (!str) return NaN;
+  if (/^\d+$/.test(str)) return parseInt(str, 10);
+  str = str.replace(/\s/g, "");
+  if (str === "十") return 10;
+
+  let result = 0, temp = 0;
+  if (str.includes("千")) {
+    const parts = str.split("千");
+    result += (cnNums[parts[0]] || 1) * 1000;
+    str = parts[1] || "";
+  }
+  if (str.includes("百")) {
+    const parts = str.split("百");
+    result += (cnNums[parts[0]] || 1) * 100;
+    str = parts[1] || "";
+  }
+  if (str.includes("十")) {
+    const parts = str.split("十");
+    result += (parts[0] ? (cnNums[parts[0]] || 0) : 1) * 10;
+    str = parts[1] || "";
+  }
+  if (str) temp = cnNums[str] || 0;
+  return result + temp;
+}
+
+const cnDigits = ["零","一","二","三","四","五","六","七","八","九"];
+function numToCn(n) {
+  n = parseInt(n, 10);
+  if (isNaN(n) || n <= 0) return "";
+  if (n < 10) return cnDigits[n];
+  if (n < 20) return "十" + (n % 10 ? cnDigits[n % 10] : "");
+  if (n < 100) {
+    const tens = Math.floor(n / 10), ones = n % 10;
+    return cnDigits[tens] + "十" + (ones ? cnDigits[ones] : "");
+  }
+  if (n < 1000) {
+    const hundreds = Math.floor(n / 100), rem = n % 100;
+    if (rem === 0) return cnDigits[hundreds] + "百";
+    if (rem < 10) return cnDigits[hundreds] + "百零" + cnDigits[rem];
+    return cnDigits[hundreds] + "百" + numToCn(rem);
+  }
+  if (n < 10000) {
+    const thousands = Math.floor(n / 1000), rem = n % 1000;
+    if (rem === 0) return cnDigits[thousands] + "千";
+    if (rem < 100) return cnDigits[thousands] + "千零" + numToCn(rem);
+    return cnDigits[thousands] + "千" + numToCn(rem);
+  }
+  return String(n);
+}
+
+function buildOutput(num, title, fmt) {
+  const t = title ? " " + title : "";
+  switch(fmt) {
+    case "cn":  return `第${numToCn(num)}章${t}`;
+    case "ar":  return `第${num}章${t}`;
+    case "num": return `${String(num).padStart(2,"0")}${t}`;
+    case "ch":  return `Chapter ${num}${t}`;
+    default:    return `第${num}章${t}`;
+  }
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function looksLikeMetaLine(line) {
+  const l = line.trim();
+  if (!l) return false;
+  return /^(简介|文案|作者|作品简介|内容简介|标签|排雷|预警|说明|更新|微博|简介：|文案：|作者：)/.test(l)
+    || /请假|完结|加更|排雷|避雷|预收|收藏|评论区|读者|宝子|宝宝|更新时间/.test(l);
+}
+
+function cleanTitle(title, num) {
+  if (!title) return "";
+  let t = title.trim();
+  t = t.replace(/^[\s:：\-—_、,.．\/\\|]+/, "").trim();
+
+  const numPattern = String(num).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  t = t.replace(new RegExp("^第\\s*" + numPattern + "\\s*[章节回节卷篇话幕部]\\s*[:：\\-—、.．]*\\s*", "i"), "").trim();
+  t = t.replace(new RegExp("^" + numPattern + "\\s*[:：\\-—、.．/]*\\s*"), "").trim();
+
+  if (new RegExp("^第\\s*" + numPattern + "\\s*[章节回节卷篇话幕部]$", "i").test(t)) t = "";
+  return t;
+}
+
+function parseStrongLine(line) {
+  const raw = line;
+  const l = raw.trim();
+  if (!l || l.length > 80 || looksLikeMetaLine(l)) return null;
+
+  let m, num, title;
+
+  m = l.match(/^[\[\]【】()（）「」『』]*\s*第\s*([零〇一二两三四五六七八九十百千\d]{1,8})\s*([章节回节卷篇话幕部])\s*[\]\[【】()（）「」『』]*\s*[:：、.．\-—_]*\s*(.*)$/i);
+  if (m) {
+    num = cnToNum(m[1]);
+    if (!isNaN(num) && num > 0) {
+      title = cleanTitle(m[3], num);
+      return { num, title, raw, level: "strong" };
+    }
+  }
+
+  m = l.match(/^[Cc]hapter\s+(\d{1,4})\s*[:：、.．\-—_]*\s*(.*)$/);
+  if (m) {
+    num = parseInt(m[1], 10);
+    title = cleanTitle(m[2], num);
+    return { num, title, raw, level: "strong" };
+  }
+
+  m = l.match(/^[（(]\s*(\d{1,4})\s*[）)]\s*(.*)$/);
+  if (m) {
+    num = parseInt(m[1], 10);
+    title = cleanTitle(m[2], num);
+    return { num, title, raw, level: "strong" };
+  }
+
+  return null;
+}
+
+function parseWeakLine(line) {
+  const raw = line;
+  const l = raw.trim();
+  if (!l || l.length > 50 || looksLikeMetaLine(l)) return null;
+
+  let m, num, title;
+
+  m = l.match(/^(\d{1,4})\s*[、,，.．]\s*(.*)$/);
+  if (m) {
+    num = parseInt(m[1], 10);
+    title = cleanTitle(m[2], num);
+    if (!title || title.length > 30) return null;
+    if (/^(请假|说明|排雷|避雷|更新|作者有话说|看小说|我写小说|没必要|简介|文案)/.test(title)) return null;
+    return { num, title, raw, level: "weak" };
+  }
+
+  m = l.match(/^(\d{1,4})\s*\/\s*(.+)$/);
+  if (m) {
+    num = parseInt(m[1], 10);
+    title = cleanTitle(m[2], num);
+    if (!title || title.length > 30) return null;
+    return { num, title, raw, level: "weak" };
+  }
+
+  m = l.match(/^(\d{1,4})\s+(.+)$/);
+  if (m) {
+    num = parseInt(m[1], 10);
+    title = cleanTitle(m[2], num);
+    if (!title || title.length > 16) return null;
+    if (/^(请假|说明|排雷|避雷|更新|简介|文案|作者)/.test(title)) return null;
+    return { num, title, raw, level: "weak" };
+  }
+
+  return null;
+}
+
+function detectAuto(text) {
+  const lines = text.split("\n");
+
+  const strongItems = [];
+  for (let i = 0; i < lines.length; i++) {
+    const r = parseStrongLine(lines[i]);
+    if (r) strongItems.push({ ...r, lineIndex: i });
+  }
+
+  let items = [...strongItems];
+  let weakCount = 0;
+
+  if (strongItems.length < 3) {
+    const firstStrongIndex = strongItems.length ? strongItems[0].lineIndex : Math.floor(lines.length * 0.15);
+
+    for (let i = 0; i < lines.length; i++) {
+      if (i < firstStrongIndex) continue;
+      if (strongItems.some(x => x.lineIndex === i)) continue;
+
+      const r = parseWeakLine(lines[i]);
+      if (r) {
+        items.push({ ...r, lineIndex: i });
+        weakCount++;
+      }
+    }
+  }
+
+  items.sort((a, b) => a.lineIndex - b.lineIndex);
+
+  const reliable = [];
+  let lastNum = 0;
+  for (const item of items) {
+    if (item.level === "strong") {
+      reliable.push(item);
+      lastNum = item.num;
+      continue;
+    }
+    if (lastNum === 0 || (item.num >= lastNum && item.num <= lastNum + 5)) {
+      reliable.push(item);
+      lastNum = item.num;
+    }
+  }
+
+  const map = new Map();
+  for (const item of reliable) {
+    if (!map.has(item.lineIndex)) map.set(item.lineIndex, item);
+  }
+
+  const finalItems = [...map.values()].sort((a, b) => a.lineIndex - b.lineIndex);
+
+  return {
+    items: finalItems,
+    mode: "auto",
+    strongCount: strongItems.length,
+    weakCount,
+    reliableCount: finalItems.length,
+    customParser: null
+  };
+}
+
+function escapeRegChar(ch) {
+  return /[.*+?^${}()|[\]\\]/.test(ch) ? "\\" + ch : ch;
+}
+
+function isNumLikeAt(str, i) {
+  return /[零〇一二两三四五六七八九十百千\d]/.test(str[i]);
+}
+
+function compileExamplePrefix(prefix) {
+  const NUM_RAW = "[零〇一二两三四五六七八九十百千\\d]{1,8}";
+  let out = "";
+  let firstNumCaptured = false;
+  let i = 0;
+
+  while (i < prefix.length) {
+    const ch = prefix[i];
+
+    if (/\s/.test(ch)) {
+      while (i < prefix.length && /\s/.test(prefix[i])) i++;
+      out += "\\s*";
+      continue;
+    }
+
+    if (isNumLikeAt(prefix, i)) {
+      while (i < prefix.length && isNumLikeAt(prefix, i)) i++;
+      out += firstNumCaptured ? `(?:${NUM_RAW})` : `(${NUM_RAW})`;
+      firstNumCaptured = true;
+      continue;
+    }
+
+    out += escapeRegChar(ch);
+    i++;
+  }
+
+  return { source: out, hasNum: firstNumCaptured };
+}
+
+function roughInferExample(sample) {
+  const m = sample.match(/[零〇一二两三四五六七八九十百千\d]{1,8}/);
+  if (!m) return null;
+  const after = sample.slice(m.index + m[0].length);
+  const sep = after.match(/^[\s:：、,，.．\/\-—_]+(.+)$/);
+  return { title: sep ? sep[1].trim() : "" };
+}
+
+function buildCustomParserFromExample(example) {
+  const sample = example.trim();
+  if (!sample) return null;
+
+  let parsed = parseStrongLine(sample) || parseWeakLine(sample);
+  if (!parsed) {
+    const rough = roughInferExample(sample);
+    if (!rough) return null;
+    parsed = { title: rough.title };
+  }
+
+  let regexSource = "";
+  let titleGroup = null;
+
+  if (parsed.title) {
+    const idx = sample.lastIndexOf(parsed.title);
+    if (idx === -1) return null;
+
+    const prefix = sample.slice(0, idx);
+    const compiled = compileExamplePrefix(prefix);
+    if (!compiled.hasNum) return null;
+
+    regexSource = "^" + compiled.source + "\\s*(.+?)\\s*$";
+    titleGroup = 2;
+  } else {
+    const compiled = compileExamplePrefix(sample);
+    if (!compiled.hasNum) return null;
+
+    regexSource = "^" + compiled.source + "\\s*$";
+    titleGroup = null;
+  }
+
+  let regex;
+  try {
+    regex = new RegExp(regexSource, "i");
+  } catch {
+    return null;
+  }
+
+  return {
+    regex,
+    titleGroup,
+    source: regexSource
+  };
+}
+
+function parseWithCustomExample(line, parser) {
+  if (!parser) return null;
+
+  const raw = line;
+  const l = raw.trim();
+  if (!l || l.length > 120) return null;
+  if (looksLikeMetaLine(l)) return null;
+
+  const m = l.match(parser.regex);
+  if (!m) return null;
+
+  const num = cnToNum(m[1]);
+  if (isNaN(num) || num <= 0) return null;
+
+  let title = "";
+  if (parser.titleGroup && m[parser.titleGroup] != null) {
+    title = cleanTitle(m[parser.titleGroup], num);
+  }
+
+  return { num, title, raw, level: "custom" };
+}
+
+function detectCustom(text, parser) {
+  const lines = text.split("\n");
+  const items = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const r = parseWithCustomExample(lines[i], parser);
+    if (r) items.push({ ...r, lineIndex: i });
+  }
+
+  return {
+    items,
+    mode: "custom",
+    strongCount: 0,
+    weakCount: 0,
+    reliableCount: items.length,
+    customParser: parser
+  };
+}
+
+function getCurrentDetection() {
+  const useCustom = document.getElementById("useCustomExample").checked;
+  const example = document.getElementById("customExample").value.trim();
+
+  if (useCustom) {
+    const parser = buildCustomParserFromExample(example);
+    if (!parser) {
+      return {
+        items: [],
+        mode: "custom-invalid",
+        strongCount: 0,
+        weakCount: 0,
+        reliableCount: 0,
+        customParser: null
+      };
+    }
+    return detectCustom(fileContent, parser);
+  }
+
+  return detectAuto(fileContent);
+}
+
+function updateStatus() {
+  const box = document.getElementById("statusBox");
+  const useCustom = document.getElementById("useCustomExample").checked;
+  const example = document.getElementById("customExample").value.trim();
+
+  if (!fileContent) {
+    box.innerHTML = `
+      <div class="status-main">请先上传 TXT 文件</div>
+      <div class="status-sub">可自动识别；也可开启“自定义示例”优先匹配。</div>
+    `;
+    return;
+  }
+
+  if (useCustom && !example) {
+    box.innerHTML = `
+      <div class="status-main">已开启自定义示例，但你还没输入示例</div>
+      <div class="status-sub">请输入一条真实章节行，例如：第1章 第 1 章:我的美人娘和阿姐</div>
+    `;
+    return;
+  }
+
+  if (detectionResult.mode === "custom-invalid") {
+    box.innerHTML = `
+      <div class="status-main">这条示例暂时无法生成规则</div>
+      <div class="status-sub">请换一条更像章节标题的示例，或关闭自定义示例改用自动识别。</div>
+    `;
+    return;
+  }
+
+  if (detectionResult.reliableCount > 0) {
+    if (detectionResult.mode === "custom") {
+      box.innerHTML = `
+        <div class="status-main">已按<strong>自定义示例</strong>识别到 <strong>${detectionResult.reliableCount}</strong> 个章节标题</div>
+        <div class="status-sub">生成规则：${detectionResult.customParser.source}</div>
+      `;
+    } else {
+      box.innerHTML = `
+        <div class="status-main">已按<strong>自动识别</strong>识别到 <strong>${detectionResult.reliableCount}</strong> 个章节标题</div>
+        <div class="status-sub">strong=${detectionResult.strongCount} | weak+=${detectionResult.weakCount}</div>
+      `;
+    }
+  } else {
+    box.innerHTML = `
+      <div class="status-main">未识别到章节标题，无法转换</div>
+      <div class="status-sub">建议：开启“自定义示例”，输入一条真实章节行再试。</div>
+    `;
+  }
+}
+
+function updateSamples() {
+  const box = document.getElementById("sampleBox");
+  const items = detectionResult.items.slice(0, 12);
+
+  if (!items.length) {
+    box.textContent = "未识别到样本";
+    return;
+  }
+
+  box.textContent = items.map(item => {
+    const out = buildOutput(item.num, item.title, selectedOut);
+    return `L${item.lineIndex + 1} [${item.level}] ${out}`;
+  }).join("\n");
+}
+
+function renderPreview() {
+  const lines = fileContent.split("\n").slice(0, 20);
+  const box = document.getElementById("previewBox");
+  const itemMap = new Map(detectionResult.items.map(x => [x.lineIndex, x]));
+
+  box.innerHTML = lines.map((line, idx) => {
+    const item = itemMap.get(idx);
+    if (item) return `<span class="ch">${esc(buildOutput(item.num, item.title, selectedOut))}</span>`;
+    return `<span class="normal">${esc(line.trimEnd() || " ")}</span>`;
+  }).join("\n");
+}
+
+function rerunDetection() {
+  if (!fileContent) return;
+
+  detectionResult = getCurrentDetection();
+  document.getElementById("runBtn").disabled = detectionResult.reliableCount === 0;
+  document.getElementById("previewCard").style.display = "block";
+  document.getElementById("result").classList.remove("show");
+
+  updateStatus();
+  updateSamples();
+  renderPreview();
+}
+
+function selectOut(el) {
+  document.querySelectorAll(".out-opt").forEach(o => o.classList.remove("active"));
+  el.classList.add("active");
+  selectedOut = el.dataset.out;
+  if (fileContent) {
+    updateSamples();
+    renderPreview();
+  }
+}
+
+const fileInput = document.getElementById("fileInput");
+const uploadArea = document.getElementById("uploadArea");
+const useCustomExample = document.getElementById("useCustomExample");
+const customExample = document.getElementById("customExample");
+
+fileInput.addEventListener("change", e => loadFile(e.target.files[0]));
+uploadArea.addEventListener("dragover", e => { e.preventDefault(); uploadArea.classList.add("drag"); });
+uploadArea.addEventListener("dragleave", () => uploadArea.classList.remove("drag"));
+uploadArea.addEventListener("drop", e => {
+  e.preventDefault();
+  uploadArea.classList.remove("drag");
+  loadFile(e.dataTransfer.files[0]);
+});
+
+useCustomExample.addEventListener("change", rerunDetection);
+customExample.addEventListener("input", rerunDetection);
+
+function loadFile(file) {
+  if (!file) return;
+  fileName = file.name;
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    fileContent = ev.target.result;
+    detectionResult = getCurrentDetection();
+
+    uploadArea.classList.add("file-loaded");
+    uploadArea.innerHTML = `
+      <div class="icon">📄</div>
+      <p><strong>${esc(fileName)}</strong></p>
+      <p style="font-size:12px;margin-top:4px;">${(file.size/1024).toFixed(1)} KB · ${fileContent.split("\n").length} 行</p>
+    `;
+
+    document.getElementById("runBtn").disabled = detectionResult.reliableCount === 0;
+    document.getElementById("previewCard").style.display = "block";
+    document.getElementById("result").classList.remove("show");
+
+    updateStatus();
+    updateSamples();
+    renderPreview();
+  };
+
+  reader.readAsText(file, "UTF-8");
+}
+
+function process() {
+  if (!fileContent) return;
+
+  if (detectionResult.reliableCount === 0) {
+    alert("未识别到章节标题，无法转换。");
+    return;
+  }
+
+  const itemMap = new Map(detectionResult.items.map(x => [x.lineIndex, x]));
+  let count = 0;
+
+  const result = fileContent.split("\n").map((line, idx) => {
+    const item = itemMap.get(idx);
+    if (item) {
+      count++;
+      return buildOutput(item.num, item.title, selectedOut);
+    }
+    return line;
+  });
+
+  const blob = new Blob([result.join("\n")], { type: "text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName.replace(/\.txt$/i, "_fixed.txt");
+  a.click();
+
+  document.getElementById("resultNum").textContent = count;
+  document.getElementById("result").classList.add("show");
+}
+</script>
+</body>
+</html>
