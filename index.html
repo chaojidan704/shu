@@ -94,6 +94,14 @@
   .preview-box.show { display: block; }
   .preview-box .ch { color: #f0a070; }
   .preview-box .normal { color: #8a9a8a; }
+ html, body {
+  overscroll-behavior: none;
+}
+
+.wrap {
+  overscroll-behavior: contain;
+}
+
 </style>
 </head>
 <body>
@@ -777,6 +785,21 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/shu/sw.js");
   });
 }
+(function () {
+  let startY = 0;
+
+  document.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) startY = e.touches[0].clientY;
+  }, { passive: true });
+
+  document.addEventListener("touchmove", (e) => {
+    const y = e.touches[0].clientY;
+    const pullingDown = y - startY > 8;
+    const atTop = window.scrollY <= 0;
+    if (atTop && pullingDown) e.preventDefault();
+  }, { passive: false });
+})();
+
 </script>
 </body>
 </html>
