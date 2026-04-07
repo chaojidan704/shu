@@ -1,4 +1,4 @@
-const CACHE_NAME = "shu-pwa-v2";
+const CACHE_NAME = "shu-pwa-v4";
 const ASSETS = [
   "/shu/",
   "/shu/index.html",
@@ -8,7 +8,7 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
+  event.waitUntil(caches.open(CACHE_NAME).then((c) => c.addAll(ASSETS)));
   self.skipWaiting();
 });
 
@@ -22,7 +22,5 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  event.respondWith(
-    caches.match(event.request).then((res) => res || fetch(event.request))
-  );
+  event.respondWith(caches.match(event.request).then((r) => r || fetch(event.request)));
 });
