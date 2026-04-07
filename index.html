@@ -772,6 +772,11 @@ function process() {
   document.getElementById("resultNum").textContent = count;
   document.getElementById("result").classList.add("show");
 }
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/shu/sw.js");
+  });
+}
 </script>
 </body>
 </html>
