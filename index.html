@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>章节标题修复器</title>
 <link rel="manifest" href="/shu/manifest.webmanifest" />
+<meta name="theme-color" content="#ffffff" />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -90,18 +91,22 @@
   .result-num { font-size: 28px; font-weight: 600; color: var(--ok); }
   .result-label { font-size: 13px; color: #4caf50; margin-top: 2px; }
 
+  .enc-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .enc-btn { flex: 1; min-width: 70px; padding: 8px 6px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 12px; text-align: center; background: var(--paper); transition: all 0.15s; font-family: 'JetBrains Mono', monospace; color: var(--muted); }
+  .enc-btn:hover { border-color: var(--accent); color: var(--ink); }
+  .enc-btn.active { border-color: var(--accent); background: #fff3ee; color: var(--accent); font-weight: 700; }
+  .enc-note { margin-top: 8px; font-size: 11px; color: var(--muted); }
   .preview-box { background: var(--ink); color: #e8e0d0; border-radius: 4px; padding: 14px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.7; max-height: 220px; overflow-y: auto; display: none; white-space: pre-wrap; }
   .preview-box.show { display: block; }
   .preview-box .ch { color: #f0a070; }
   .preview-box .normal { color: #8a9a8a; }
- html, body {
-  overscroll-behavior: none;
-}
 
-.wrap {
-  overscroll-behavior: contain;
-}
-
+  html, body {
+    overscroll-behavior: none;
+  }
+  .wrap {
+    overscroll-behavior: contain;
+  }
 </style>
 </head>
 <body>
@@ -123,8 +128,11 @@
     <input type="file" id="fileInput" accept=".txt">
   </div>
 
+
+  
+
   <div class="card">
-    <div class="card-title">② 自定义示例（可选）</div>
+    <div class="card-title">③ 自定义示例（可选）</div>
     <div class="custom-box">
       <label class="switch-row">
         <input type="checkbox" id="useCustomExample">
@@ -139,7 +147,7 @@
   </div>
 
   <div class="card">
-    <div class="card-title">③ 识别结果</div>
+    <div class="card-title">④ 识别结果</div>
     <div class="status-box" id="statusBox">
       <div class="status-main">请先上传 TXT 文件</div>
       <div class="status-sub">可自动识别；也可开启“自定义示例”优先匹配。</div>
@@ -147,28 +155,28 @@
   </div>
 
   <div class="card">
-    <div class="card-title">④ 识别样本（前12条）</div>
+    <div class="card-title">⑤ 识别样本（前12条）</div>
     <div class="sample-box" id="sampleBox">上传后这里会显示识别到的章节样本</div>
   </div>
 
   <div class="card">
-    <div class="card-title">⑤ 输出格式</div>
+    <div class="card-title">⑥ 输出格式</div>
     <div class="out-options">
       <div class="out-opt active" data-out="cn" onclick="selectOut(this)">
         大写数字
         <div class="sample">第一章 标题</div>
       </div>
-      <div class="out-opt" data-out="slash" onclick="selectOut(this)">
-        斜杠格式
-        <div class="sample">01/标题</div>
+      <div class="out-opt" data-out="ar" onclick="selectOut(this)">
+        阿拉伯数字
+        <div class="sample">第1章 标题</div>
+      </div>
+      <div class="out-opt" data-out="num" onclick="selectOut(this)">
+        纯数字
+        <div class="sample">01 标题</div>
       </div>
       <div class="out-opt" data-out="ch" onclick="selectOut(this)">
         Chapter格式
         <div class="sample">Chapter 1 标题</div>
-      </div>
-      <div class="out-opt" data-out="paren" onclick="selectOut(this)">
-        括号格式
-        <div class="sample">（1）标题</div>
       </div>
     </div>
   </div>
@@ -254,18 +262,13 @@ function numToCn(n) {
 }
 
 function buildOutput(num, title, fmt) {
-  const t = title || "";
+  const t = title ? " " + title : "";
   switch(fmt) {
-    case "cn":
-      return `第${numToCn(num)}章${t ? " " + t : ""}`;
-    case "slash":
-      return `${String(num).padStart(2, "0")}/${t}`;
-    case "ch":
-      return `Chapter ${num}${t ? " " + t : ""}`;
-    case "paren":
-      return `（${num}）${t}`;
-    default:
-      return `第${numToCn(num)}章${t ? " " + t : ""}`;
+    case "cn":  return `第${numToCn(num)}章${t}`;
+    case "ar":  return `第${num}章${t}`;
+    case "num": return `${String(num).padStart(2,"0")}${t}`;
+    case "ch":  return `Chapter ${num}${t}`;
+    default:    return `第${num}章${t}`;
   }
 }
 
@@ -675,34 +678,93 @@ function selectOut(el) {
   }
 }
 
-async function readTxtFileSmart(file) {
-  const buffer = await file.arrayBuffer();
 
-  const encodings = ["utf-8", "gb18030", "gbk", "big5"];
-  let bestText = "";
-  let bestScore = -Infinity;
-  let bestEncoding = "utf-8";
+// ===== 内嵌GBK解码表（不依赖TextDecoder）=====
+const GBK_TABLE="丂丄丅丆丏丒丗丟丠両丣並丩丮丯丱丳丵丷丼乀乁乂乄乆乊乑乕乗乚乛乢乣乤乥乧乨乪乫乬乭乮乯乲乴乵乶乷乸乹乺乻乼乽乿亀亁亂亃亄亅亇亊亐亖亗亙亜亝亞亣亪亯亰亱亴亶亷亸亹亼亽亾仈仌仏仐仒仚仛仜仠仢仦仧仩仭仮仯仱仴仸仹仺仼仾伀伂伃伄伅伆伇伈伋伌伒伓伔伕伖伜伝伡伣伨伩伬伭伮伱伳伵伷伹伻伾伿佀佁佂佄佅佇佈佉佊佋佌佒佔佖佡佢佦佨佪佫佭佮佱佲併佷佸佹佺佽侀侁侂侅來侇侊侌侎侐侒侓侕侖侘侙侚侜侞侟価侢侤侫侭侰侱侲侳侴侶侷侸侹侺侻侼侽侾俀俁係俆俇俈俉俋俌俍俒俓俔俕俖俙俛俠俢俤俥俧俫俬俰俲俴俵俶俷俹俻俼俽俿倀倁倂倃倄倅倆倇倈倉倊個倎倐們倓倕倖倗倛倝倞倠倢倣値倧倫倯倰倱倲倳倴倵倶倷倸倹倻倽倿偀偁偂偄偅偆偉偊偋偍偐偑偒偓偔偖偗偘偙偛偝偞偟偠偡偢偣偤偦偧偨偩偪偫偭偮偯偰偱偲偳側偵偸偹偺偼偽傁傂傃傄傆傇傉傊傋傌傎傏傐傑傒傓傔傕傖傗傘備傚傛傜傝傞傟傠傡傢傤傦傪傫傭傮傯傰傱傳傴債傶傷傸傹傼傽傾傿僀僁僂僃僄僅僆僇僈僉僊僋僌働僎僐僑僒僓僔僕僗僘僙僛僜僝僞僟僠僡僢僣僤僥僨僩僪僫僯僰僱僲僴僶僷僸價僺僼僽僾僿儀儁儂儃億儅儈儉儊儌儍儎儏儐儑儓儔儕儖儗儘儙儚儛儜儝儞償儠儢儣儤儥儦儧儨儩優儫儬儭儮儯儰儱儲儳儴儵儶儷儸儹儺儻儼儽儾兂兇兊兌兎兏児兒兓兗兘兙兛兝兞兟兠兡兣兤兦內兩兪兯兲兺兾兿冃冄円冇冊冋冎冏冐冑冓冔冘冚冝冞冟冡冣冦冧冨冩冪冭冮冴冸冹冺冾冿凁凂凃凅凈凊凍凎凐凒凓凔凕凖凗凘凙凚凜凞凟凢凣凥処凧凨凩凪凬凮凱凲凴凷凾刄刅刉刋刌刏刐刓刔刕刜刞刟刡刢刣別刦刧刪刬刯刱刲刴刵刼刾剄剅剆則剈剉剋剎剏剒剓剕剗剘剙剚剛剝剟剠剢剣剤剦剨剫剬剭剮剰剱剳剴創剶剷剸剹剺剻剼剾劀劃劄劅劆劇劉劊劋劌劍劎劏劑劒劔劕劖劗劘劙劚劜劤劥劦劧劮劯劰労劵劶劷劸効劺劻劼劽勀勁勂勄勅勆勈勊勌勍勎勏勑勓勔動勗務勚勛勜勝勞勠勡勢勣勥勦勧勨勩勪勫勬勭勮勯勱勲勳勴勵勶勷勸勻勼勽匁匂匃匄匇匉匊匋匌匎匑匒匓匔匘匛匜匞匟匢匤匥匧匨匩匫匬匭匯匰匱匲匳匴匵匶匷匸匼匽區卂卄卆卋卌卍卐協単卙卛卝卥卨卪卬卭卲卶卹卻卼卽卾厀厁厃厇厈厊厎厏厐厑厒厓厔厖厗厙厛厜厞厠厡厤厧厪厫厬厭厯厰厱厲厳厴厵厷厸厹厺厼厽厾叀參叄叅叆叇収叏叐叒叓叕叚叜叝叞叡叢叧叴叺叾叿吀吂吅吇吋吔吘吙吚吜吢吤吥吪吰吳吶吷吺吽吿呁呂呄呅呇呉呌呍呎呏呑呚呝呞呟呠呡呣呥呧呩呪呫呬呭呮呯呰呴呹呺呾呿咁咃咅咇咈咉咊咍咑咓咗咘咜咞咟咠咡咢咥咮咰咲咵咶咷咹咺咼咾哃哅哊哋哖哘哛哠員哢哣哤哫哬哯哰哱哴哵哶哷哸哻哾唀唂唃唄唅唈唊唋唌唍唎唒唓唕唖唗唘唙唚唜唝唞唟唡唥唦唨唩唫唭唲唴唵唶唸唹唺唻唽啀啂啅啇啈啋啌啍啎問啑啒啓啔啗啘啙啚啛啝啞啟啠啢啣啨啩啫啯啰啱啲啳啴啹啺啽啿喅喆喌喍喎喐喒喓喕喖喗喚喛喞喠喡喢喣喤喥喦喨喩喪喫喬喭單喯喰喲喴営喸喺喼喿嗀嗁嗂嗃嗆嗇嗈嗊嗋嗎嗏嗐嗕嗗嗘嗙嗚嗛嗞嗠嗢嗧嗩嗭嗮嗰嗱嗴嗶嗸嗹嗺嗻嗼嗿嗿嘂嘃嘄嘅嘆嘇嘊嘋嘍嘐嘑嘒嘓嘔嘕嘖嘗嘙嘚嘜嘝嘠嘡嘢嘥嘦嘨嘩嘪嘫嘮嘯嘰嘳嘵嘷嘸嘺嘼嘽嘾噀噁噂噃噄噅噆噇噈噉噊噋噏噐噑噒噓噕噖噚噛噝噞噟噠噡噣噥噦噧噭噮噯噰噲噳噴噵噷噸噹噺噽噾噿嚀嚁嚂嚃嚄嚇嚈嚉嚊嚋嚌嚍嚐嚑嚒嚔嚕嚖嚗嚘嚙嚚嚛嚜嚝嚞嚟嚠嚡嚢嚤嚥嚦嚧嚨嚩嚪嚫嚬嚭嚮嚰嚱嚲嚳嚴嚵嚶嚸嚹嚺嚻嚽嚾嚿囀囁囂囃囄囅囆囇囈囉囋囌囍囎囏囐囑囒囓囕囖囘囙囜団囥囦囧囨囩囪囬囮囯囲図囶囷囸囻囼圀圁圂圅圇國圌圍圎圏圐圑園圓圔圕圖圗團圙圚圛圝圞圠圡圢圤圥圦圧圫圱圲圴圵圶圷圸圼圽圿坁坃坄坅坆坈坉坋坒坓坔坕坖坘坙坢坣坥坧坬坮坰坱坲坴坵坸坹坺坽坾坿垀垁垇垈垉垊垍垎垏垐垑垔垕垖垗垘垙垚垜垝垞垟垥垨垪垬垯垰垱垳垵垶垷垹垺垻垼垽垾垿埀埁埄埅埆埇埈埉埊埌埍埐埑埓埖埗埛埜埞埡埢埣埥埦埧埨埩埪埫埬埮埰埱埲埳埵埶執埻埼埾埿堁堃堄堅堈堉堊堌堎堏堐堒堓堔堖堗堘堚堛堜堝堟堢堣堥堦堧堨堩堫堬堭堮堯報堲堳場堶堷堸堹堺堻堼堽堾堿塀塁塂塃塅塆塇塈塉塊塋塎塏塐塒塓塕塖塗塙塚塛塜塝塟塠塡塢塣塤塦塧塨塩塪塭塮塯塰塱塲塳塴塵塶塷塸塹塺塻塼塽塿墂墄墆墇墈墊墋墌墍墎墏墐墑墔墕墖増墘墛墜墝墠墡墢墣墤墥墦墧墪墫墬墭墮墯墰墱墲墳墴墵墶墷墸墹墺墻墽墾墿壀壂壃壄壆壇壈壉壊壋壌壍壎壏壐壒壓壔壖壗壘壙壚壛壜壝壞壟壠壡壢壣壥壦壧壨壩壪壭壯壱売壴壵壷壸壺壻壼壽壾壿夀夁夃夅夆夈変夊夋夌夎夐夑夒夓夗夘夛夝夞夠夡夢夣夦夨夬夰夲夳夵夶夻夽夾夿奀奃奅奆奊奌奍奐奒奓奙奛奜奝奞奟奡奣奤奦奧奨奩奪奫奬奭奮奯奰奱奲奵奷奺奻奼奾奿妀妅妉妋妌妎妏妐妑妔妕妘妚妛妜妝妟妠妡妢妦妧妬妭妰妱妳妴妵妶妷妸妺妼妽妿姀姁姂姃姄姅姇姈姉姌姍姎姏姕姖姙姛姞姟姠姡姢姤姦姧姩姪姫姭姮姯姰姱姲姳姴姵姶姷姸姺姼姽姾娀娂娊娋娍娎娏娐娒娔娕娖娗娙娚娛娝娞娡娢娤娦娧娨娪娫娬娭娮娯娰娳娵娷娸娹娺娻娽娾娿婁婂婃婄婅婇婈婋婌婍婎婏婐婑婒婓婔婖婗婘婙婛婜婝婞婟婠婡婣婤婥婦婨婩婫婬婭婮婯婰婱婲婳婸婹婻婼婽婾媀媁媂媃媄媅媆媇媈媉媊媋媌媍媎媏媐媑媓媔媕媖媗媘媙媜媝媞媟媠媡媢媣媤媥媦媧媨媩媫媬媭媮媯媰媱媴...";
 
-  for (const enc of encodings) {
-    try {
-      const text = new TextDecoder(enc, { fatal: false }).decode(buffer);
-
-      const chineseCount = (text.match(/[\u4e00-\u9fff]/g) || []).length;
-      const badCharCount = (text.match(/�/g) || []).length;
-      const strangeCount = (text.match(/[�□]/g) || []).length;
-
-      const score = chineseCount - badCharCount * 30 - strangeCount * 10;
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestText = text;
-        bestEncoding = enc;
+function decodeGBK(buffer) {
+  const u8 = new Uint8Array(buffer);
+  let result = '';
+  let i = 0;
+  while (i < u8.length) {
+    const b = u8[i];
+    if (b < 0x80) {
+      result += String.fromCharCode(b);
+      i++;
+    } else if (b >= 0x81 && b <= 0xFE && i + 1 < u8.length) {
+      const t = u8[i + 1];
+      if (t >= 0x40 && t <= 0xFE) {
+        const idx = (b - 0x81) * 190 + (t - 0x40);
+        result += GBK_TABLE[idx] || '\uFFFD';
+        i += 2;
+      } else {
+        result += '\uFFFD';
+        i++;
       }
-    } catch (e) {}
+    } else {
+      result += '\uFFFD';
+      i++;
+    }
   }
-
-  return { text: bestText, encoding: bestEncoding };
+  return result;
 }
+
+// ===== 编码检测与切换 =====
+let rawBuffer = null;
+let currentEncoding = "auto";
+let autoDetectedEncoding = "utf-8";
+
+function decodeBuffer(buffer, enc) {
+  const actual = enc === "auto" ? autoDetectedEncoding : enc;
+  if (actual === "gb18030" || actual === "gbk") return decodeGBK(buffer);
+  // UTF-16 BE/LE: strip BOM if present, then decode
+  if (actual === "utf-16be" || actual === "utf-16le") {
+    try {
+      return new TextDecoder(actual, { fatal: false }).decode(buffer);
+    } catch(e) {}
+  }
+  try {
+    return new TextDecoder(actual, { fatal: false }).decode(buffer);
+  } catch(e) {
+    return new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+  }
+}
+
+function detectBestEncoding(buffer) {
+  // Check for BOM first
+  const u8 = new Uint8Array(buffer);
+  if (u8[0] === 0xFF && u8[1] === 0xFE) return "utf-16le";
+  if (u8[0] === 0xFE && u8[1] === 0xFF) return "utf-16be";
+  if (u8[0] === 0xEF && u8[1] === 0xBB && u8[2] === 0xBF) return "utf-8";
+  // No BOM: check if it looks like UTF-16 (many null bytes)
+  let nullBytes = 0;
+  for (let i = 0; i < Math.min(200, u8.length); i++) if (u8[i] === 0) nullBytes++;
+  if (nullBytes > 20) {
+    // Likely UTF-16, detect BE vs LE by checking odd/even null positions
+    let evenNulls = 0, oddNulls = 0;
+    for (let i = 0; i < Math.min(200, u8.length); i++) {
+      if (u8[i] === 0) { if (i % 2 === 0) evenNulls++; else oddNulls++; }
+    }
+    return evenNulls > oddNulls ? "utf-16be" : "utf-16le";
+  }
+  const candidates = [
+    { enc: "utf-8", decode: (b) => new TextDecoder("utf-8", {fatal:false}).decode(b) },
+    { enc: "gb18030", decode: (b) => decodeGBK(b) },
+    { enc: "big5", decode: (b) => { try { return new TextDecoder("big5",{fatal:false}).decode(b); } catch(e){ return ""; } } },
+  ];
+  let best = "utf-8", bestScore = -Infinity;
+  for (const { enc, decode } of candidates) {
+    try {
+      const text = decode(buffer);
+      const chinese = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length;
+      const bad = (text.match(/\uFFFD/g) || []).length;
+      const score = chinese * 2 - bad * 50;
+      if (score > bestScore) { bestScore = score; best = enc; }
+    } catch(e) {}
+  }
+  return best;
+}
+
 
 const fileInput = document.getElementById("fileInput");
 const uploadArea = document.getElementById("uploadArea");
@@ -724,10 +786,15 @@ customExample.addEventListener("input", rerunDetection);
 async function loadFile(file) {
   if (!file) return;
   fileName = file.name;
-
   try {
-    const result = await readTxtFileSmart(file);
-    fileContent = result.text;
+    rawBuffer = await file.arrayBuffer();
+    autoDetectedEncoding = detectBestEncoding(rawBuffer);
+    currentEncoding = "auto";
+
+
+
+
+    fileContent = decodeBuffer(rawBuffer, currentEncoding);
     detectionResult = getCurrentDetection();
 
     uploadArea.classList.add("file-loaded");
@@ -735,16 +802,12 @@ async function loadFile(file) {
       <div class="icon">📄</div>
       <p><strong>${esc(fileName)}</strong></p>
       <p style="font-size:12px;margin-top:4px;">${(file.size/1024).toFixed(1)} KB · ${fileContent.split("\n").length} 行</p>
-      <p style="font-size:12px;margin-top:4px;color:#8a7a6a;">已自动识别编码：${esc(result.encoding)}</p>
     `;
 
     document.getElementById("runBtn").disabled = detectionResult.reliableCount === 0;
     document.getElementById("previewCard").style.display = "block";
     document.getElementById("result").classList.remove("show");
-
-    updateStatus();
-    updateSamples();
-    renderPreview();
+    updateStatus(); updateSamples(); renderPreview();
   } catch (err) {
     console.error(err);
     alert("读取文件失败，请检查文件格式。");
@@ -780,14 +843,16 @@ function process() {
   document.getElementById("resultNum").textContent = count;
   document.getElementById("result").classList.add("show");
 }
+
+// --- 以下是 PWA 安装器和防误触代码 ---
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/shu/sw.js");
   });
 }
+
 (function () {
   let startY = 0;
-
   document.addEventListener("touchstart", (e) => {
     if (e.touches.length === 1) startY = e.touches[0].clientY;
   }, { passive: true });
@@ -799,7 +864,6 @@ if ("serviceWorker" in navigator) {
     if (atTop && pullingDown) e.preventDefault();
   }, { passive: false });
 })();
-
 </script>
 </body>
 </html>
